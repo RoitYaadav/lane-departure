@@ -89,7 +89,7 @@ M_b = cv2.getPerspectiveTransform(src_, dst_)
 s_thresh, sx_thresh, dir_thresh, m_thresh, r_thresh = (120, 255), (20, 100), (0.7, 1.3), (30, 100), (200, 255)
 
 # load the calibration
-calib_file = 'camera_cal_1/calibration_pickle.p'
+calib_file = 'camera_cal/calibration_pickle.p'
 mtx, dist = load_calibration(calib_file)
 
 
@@ -107,7 +107,11 @@ def abs_sobel_thresh(img, orient='x', sobel_kernel=3, thresh=(0, 255)):
         abs_sobel = np.absolute(cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=sobel_kernel))
 
     # 4) Scale to 8-bit (0 - 255) then convert to type = np.uint8
-    scaled_sobel = np.uint8(255.*abs_sobel/np.max(abs_sobel))
+    max_val = np.max(abs_sobel)
+    if max_val == 0:
+        scaled_sobel = np.zeros_like(abs_sobel, dtype=np.uint8)
+    else:
+        scaled_sobel = np.uint8(255.*abs_sobel/max_val)
 
     # 5) Create a mask of 1's where the scaled gradient magnitude
     # is > thresh_min and < thresh_max
@@ -131,8 +135,12 @@ def mag_thresh(img, sobel_kernel=3, thresh=(0, 255)):
     gradmag = np.sqrt(sobelx**2 + sobely**2)
 
     # 4) Scale to 8-bit (0 - 255) and convert to type = np.uint8
-    scale_factor = np.max(gradmag)/255
-    gradmag = (gradmag/scale_factor).astype(np.uint8)
+    max_mag = np.max(gradmag)
+    if max_mag == 0:
+        gradmag = np.zeros_like(gradmag, dtype=np.uint8)
+    else:
+        scale_factor = max_mag/255
+        gradmag = (gradmag/scale_factor).astype(np.uint8)
 
     # 5) Create a binary mask where mag thresholds are met
     binary_output = np.zeros_like(gradmag)
@@ -197,7 +205,7 @@ def find_edges(img, s_thresh=s_thresh, sx_thresh=sx_thresh, dir_thresh=dir_thres
 
     img = np.copy(img)
     # Convert to HSV color space and threshold the s channel
-    hls = cv2.cvtColor(img, cv2.COLOR_BGR2HLS).astype(np.float)
+    hls = cv2.cvtColor(img, cv2.COLOR_BGR2HLS).astype(np.float32)
     s_channel = hls[:,:,2]
     s_binary = threshold_col_channel(s_channel, thresh=s_thresh)
 
@@ -240,14 +248,14 @@ def full_search(binary_warped, visualization=False):
 
     # Find the peak of the left and right halves of the histogram
     # These will be the starting point for the left and right lines
-    midpoint = np.int(histogram.shape[0]/2)
+    midpoint = int(histogram.shape[0]/2)
     leftx_base = np.argmax(histogram[:midpoint])
     rightx_base = np.argmax(histogram[midpoint:]) + midpoint
 
     # Choose the number of sliding windows
     nwindows = 9
     # Set height of windows
-    window_height = np.int(binary_warped.shape[0]/nwindows)
+    window_height = int(binary_warped.shape[0]/nwindows)
     # Identify the x and y positions of all nonzero pixels in the image
     nonzero = binary_warped.nonzero()
     nonzeroy = np.array(nonzero[0])
@@ -256,9 +264,9 @@ def full_search(binary_warped, visualization=False):
     leftx_current = leftx_base
     rightx_current = rightx_base
     # Set the width of the windows +/- margin
-    margin = np.floor(100/input_scale)
+    margin = int(np.floor(100/input_scale))
     # Set minimum number of pixels found to recenter window
-    minpix = np.floor(50/input_scale)
+    minpix = int(np.floor(50/input_scale))
     # Create empty lists to receive left and right lane pixel indices
     left_lane_inds = []
     right_lane_inds = []
@@ -285,21 +293,25 @@ def full_search(binary_warped, visualization=False):
         right_lane_inds.append(good_right_inds)
         # If you found > minpix pixels, recenter next window on their mean position
         if len(good_left_inds) > minpix:
-            leftx_current = np.int(np.mean(nonzerox[good_left_inds]))
+            leftx_current = int(np.mean(nonzerox[good_left_inds]))
         if len(good_right_inds) > minpix:
-            rightx_current = np.int(np.mean(nonzerox[good_right_inds]))
+            rightx_current = int(np.mean(nonzerox[good_right_inds]))
 
     # Concatenate the arrays of indices
     left_lane_inds = np.concatenate(left_lane_inds)
     right_lane_inds = np.concatenate(right_lane_inds)
 
     # Extract left and right line pixel positions
+    if left_lane_inds.size == 0 or right_lane_inds.size == 0:
+        return None, None
     leftx = nonzerox[left_lane_inds]
     lefty = nonzeroy[left_lane_inds]
     rightx = nonzerox[right_lane_inds]
     righty = nonzeroy[right_lane_inds]
 
     # Fit a second order polynomial to each
+    if leftx.size == 0 or rightx.size == 0:
+        return None, None
     left_fit = np.polyfit(lefty, leftx, 2)
     right_fit = np.polyfit(righty, rightx, 2)
     # Visualization
@@ -307,10 +319,11 @@ def full_search(binary_warped, visualization=False):
     out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]  # Red for left lane
     out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]  # Blue for right lane
 
-    # Show the result
-    cv2.imshow('Sliding Window Lane Pixels', out_img)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    # Show the result (only when visualization is enabled)
+    if visualization:
+        cv2.imshow('Sliding Window Lane Pixels', out_img)
+        cv2.waitKey(1)
+        cv2.destroyAllWindows()
 
     # Generate x and y values for plotting
     if visualization:
@@ -462,7 +475,7 @@ def compute_car_offcenter(ploty, left_fitx, right_fitx, undist):
     pts = np.hstack((pts_left, pts_right))
 
     bottom_l = left_fitx[height-1]
-    bottom_r = right_fitx[0]
+    bottom_r = right_fitx[height-1]
 
     offcenter = off_center(bottom_l, width/2.0, bottom_r)
 
@@ -564,9 +577,19 @@ def tracker(binary_sub, ploty, visualization=False):
     # Check if left and right lane pixels are found
     if left_fit is None or right_fit is None:
         print("[INFO] No lane pixels found, skipping frame or reverting to previous fit.")
-        # Optionally, handle the case by reverting to the previous fit
+        # Revert to previous fit if available
         left_lane.detected = False
         right_lane.detected = False
+        left_lane.current_poly = left_lane.prev_poly
+        right_lane.current_poly = right_lane.prev_poly
+        if len(left_lane.prev_fitx) > 0:
+            left_lane.cur_fitx = left_lane.prev_fitx[-1]
+        else:
+            left_lane.cur_fitx = None
+        if len(right_lane.prev_fitx) > 0:
+            right_lane.cur_fitx = right_lane.prev_fitx[-1]
+        else:
+            right_lane.cur_fitx = None
         return  # Skip this frame
 
     left_fitx = left_fit[0] * ploty**2 + left_fit[1] * ploty + left_fit[2]
@@ -599,8 +622,12 @@ def detector(binary_sub, ploty, visualization=False):
         # Revert to previous fit if no lane pixels found
         left_lane.current_poly = left_lane.prev_poly
         right_lane.current_poly = right_lane.prev_poly
-        left_lane.cur_fitx = left_lane.prev_fitx[-1]
-        right_lane.cur_fitx = right_lane.prev_fitx[-1]
+        if len(left_lane.prev_fitx) > 0 and len(right_lane.prev_fitx) > 0:
+            left_lane.cur_fitx = left_lane.prev_fitx[-1]
+            right_lane.cur_fitx = right_lane.prev_fitx[-1]
+        else:
+            left_lane.cur_fitx = None
+            right_lane.cur_fitx = None
         left_lane.detected = False
         right_lane.detected = False
         return  # Skip this frame
@@ -655,6 +682,11 @@ def process_frame(img, visualization=False):
         tracker(binary_sub, ploty, visualization)
     else:  # start detector
         detector(binary_sub, ploty, visualization)
+
+    # Ensure we have valid lane fits before processing further
+    if left_lane.cur_fitx is None or right_lane.cur_fitx is None:
+        # Fallback: return the undistorted original frame if detection failed
+        return img_undist_
 
     # average among the previous N frames to get the averaged lanes
     left_lane.process(ploty)
