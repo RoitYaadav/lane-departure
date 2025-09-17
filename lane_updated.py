@@ -30,10 +30,16 @@ class Lane():
 
     def average_pre_lanes(self):
         tmp = copy(self.prev_fitx)
-        tmp.append(self.cur_fitx)
-        self.mean_fitx = np.mean(tmp, axis=0)
+        if self.cur_fitx is not None:
+            tmp.append(self.cur_fitx)
+        if len(tmp) > 0:
+            self.mean_fitx = np.mean(tmp, axis=0)
+        else:
+            self.mean_fitx = None
 
     def append_fitx(self):
+        if self.mean_fitx is None:
+            return
         if len(self.prev_fitx) == N:
             self.prev_fitx.pop(0)
         self.prev_fitx.append(self.mean_fitx)
@@ -470,14 +476,18 @@ def compute_car_offcenter(ploty, left_fitx, right_fitx, undist):
     width = undist.shape[1]
 
     # Recast the x and y points into usable format for cv2.fillPoly()
-    pts_left = np.array([np.transpose(np.vstack([left_fitx, ploty]))])
-    pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, ploty])))])
-    pts = np.hstack((pts_left, pts_right))
+    pts = None
+    if left_fitx is not None and right_fitx is not None:
+        pts_left = np.array([np.transpose(np.vstack([left_fitx, ploty]))])
+        pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, ploty])))])
+        pts = np.hstack((pts_left, pts_right))
 
-    bottom_l = left_fitx[height-1]
-    bottom_r = right_fitx[height-1]
-
-    offcenter = off_center(bottom_l, width/2.0, bottom_r)
+    if left_fitx is not None and right_fitx is not None:
+        bottom_l = left_fitx[height-1]
+        bottom_r = right_fitx[height-1]
+        offcenter = off_center(bottom_l, width/2.0, bottom_r)
+    else:
+        offcenter = 0.0
 
     return offcenter, pts
 
@@ -506,11 +516,12 @@ def create_output_frame(offcenter, pts, undist_ori, fps, curvature, curve_direct
     #whole_frame = np.zeros((h*2.5,w*2.34, 3), dtype=np.uint8)
 
 
-    if abs(offcenter) > threshold:  # car is offcenter more than 0.6 m
-        # Draw Red lane
-        cv2.fillPoly(color_warp, np.int_([pts]), (255, 0, 0)) # red
-    else: # Draw Green lane
-        cv2.fillPoly(color_warp, np.int_([pts]), (0,255, 0))  # green
+    if pts is not None and len(pts) > 0:
+        if abs(offcenter) > threshold:  # car is offcenter more than 0.6 m
+            # Draw Red lane
+            cv2.fillPoly(color_warp, np.int_([pts]), (255, 0, 0)) # red
+        else: # Draw Green lane
+            cv2.fillPoly(color_warp, np.int_([pts]), (0,255, 0))  # green
 
     newwarp = cv2.warpPerspective(color_warp, M_inv, (int(frame_width/input_scale), int(frame_height/input_scale)))
 
@@ -684,8 +695,13 @@ def process_frame(img, visualization=False):
         detector(binary_sub, ploty, visualization)
 
     # Ensure we have valid lane fits before processing further
+    if left_lane.cur_fitx is None and len(left_lane.prev_fitx) > 0:
+        left_lane.cur_fitx = left_lane.prev_fitx[-1]
+    if right_lane.cur_fitx is None and len(right_lane.prev_fitx) > 0:
+        right_lane.cur_fitx = right_lane.prev_fitx[-1]
+
+    # If both are still missing, fallback to undistorted frame (nothing to draw)
     if left_lane.cur_fitx is None or right_lane.cur_fitx is None:
-        # Fallback: return the undistorted original frame if detection failed
         return img_undist_
 
     # average among the previous N frames to get the averaged lanes
