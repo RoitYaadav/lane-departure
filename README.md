@@ -1,48 +1,27 @@
-# **Lane Departure Warning System for Autonomous Driving** 
+# **Lane Departure Warning System for Driving** 
 
 ### Objective
 
 #### A demo of Lane Departure Warning System: a monocular camera is used for detecting current lane, tracking the vehicle position and estimating the front road status. 
 
-#### [**Video demo**](https://youtu.be/fqQFVK4ZxoQ) (Click to see the full video)
-
-[![gif_demo][gif1]](https://youtu.be/fqQFVK4ZxoQ)
 
 
----
-
-[//]: # (Image References)
-
-[image1]: ./examples/undist_example.jpg "Undistorted"
-[image-undistortion]: ./examples/undistortion.jpg
-[image-binary]: ./examples/binary.png
-[image-warper1]: ./examples/warper1.png
-[image-warper2]: ./examples/warper.png
-[image-hist]: ./examples/hist.png
-[image-win]: ./examples/windows.png
-[image-b_warp]: ./examples/binary_warped.png
-[image-cur]: ./examples/formula.png 
-[image-hard_case]: ./examples/dif_cases.png
-[gif1]: ./examples/video1.gif
 
 
 ### Code & Files
 
-#### 1. My project includes the following files
-(Note: the hyperlinks **only** works if you are on the homepage of this GitHub reop,
-and if you are viewing it in "github.io" you can be redirected by clicking the **View the Project on GitHub** on the top)
+#### 1. This project includes the following files
+
 
 * [calibration.py](calibration.py) contains the script to calibrate camera and save the calibration results
 * [main.py](main.py) is the main code for 2 demos
-* [lane.py](model.h5) contains the lane class 
+* [lane_updated.py](model.h5) contains the lane class 
 * [camera_cal](camera_cal) folder contains the images used for camera calibration and calibration results 
 * [examples](examples) folder contains the sample images and videos
 * [environment-gpu.yml](environment-gpu.yml) environment file with GPU 
 * [README.md](README.md) summarizing the results
 
 #### 2. Dependencies & my environment
-
-Anaconda is used for managing my [**dependencies**](https://github.com/udacity/CarND-Term1-Starter-Kit).
 
 * OpenCV3, Python3.5 
 * you can use provided [environment file with GPU](environment-gpu.yml) to install the dependencies.
@@ -57,22 +36,6 @@ If you want to use the code to calibration your own camera and test the video, s
 ```sh
 python calibration.py
 ```
-
-#### 4. Release History
-
-* 0.1.2
-    * Update the README.md
-    * Date 19 April 2017
-
-* 0.1.1
-    * Edit the visulization flag in lane.py
-    * Date 3 March 2017
-
-* 0.1.0
-    * The first proper release
-    * Date 3 March 2017
-    
----
 
 ### **Steps**
 #### 1. Camera calibration 
@@ -123,7 +86,7 @@ I assgin the twice the weights to the S channel filter than the gradient filter.
 
 #### 3. Use perspective transform to see the image in bird-view
 
-The code for my perspective transform includes a function called `warper()` (in `lane.py` line 214). Firstly, I choose a 
+The code for my perspective transform includes a function called `warper()` (in `lane_updated.py` line 214). Firstly, I choose a 
 straight line driving image, and select 4 source points which form a trapezoidal along two lane lines, then I defined another 4 destination points,
  so that I could get a perspective transform with `cv2.getPerspectiveTransform` function (see the two images below). The hardcoded source points and destination points are
  listed as follows. 
@@ -139,18 +102,18 @@ This resulted in the following source and destination points:
 
 I verified that my perspective transform was working as expected by drawing the `src` and `dst` points onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image.
 
-![alt image][image-warper1]
+
 
 
 As we could probably noticed that the image are not in the right aspect ratio (flattened lanes), but it will have no effect on the final augmented image if we use the right inverse transform to warp the image back.
  If we want to see the image in a more right scale, we could also select the destination points according to the right ratio of lane width and length in the trapezoidal. One example could be as follows:
-![alt image][image-warper2]
+
 
 
 #### 4. Identify lane-line pixels and fit their positions with a polynomial
 After applying calibration, thresholding, and a perspective transform to a road image, we should have a binary image where the lane lines stand out clearly. 
 However, we still need to decide explicitly which pixels are part of the lines and which belong to the left line and which belong to the right line.
-![][image-b_warp]
+
 #### For single image
 If the input is single image or first frame of the video, a function named `detector` (line 548 in lane.py) is used. It processes the image as follows
 * I first take a histogram along all the columns in the lower half of the image. The two most prominent peaks in this histogram 
@@ -163,11 +126,11 @@ for the lines.  as a reuslt I will get similar figure as follows:
  and search up to the top of the frame. The idea is visualized as the following figure.
 ![][image-win]
 
-* Finally, I fit my lane lines with a 2nd order polynomial by `np.polyfit` like in `lane.py` line 293:
+* Finally, I fit my lane lines with a 2nd order polynomial by `np.polyfit` like in `lane_updated.py` line 293:
 
 #### For video
 * If the input is video, the first frame can be treated the same as the individual image. Then we will have the estimated position of left and right lanes,
-so it will be wise to take their positions as initiates for finding the lanes in the next frame. Therefore, a function named `tracker` in `lane.py` is used 
+so it will be wise to take their positions as initiates for finding the lanes in the next frame. Therefore, a function named `tracker` in `lane_updated.py` is used 
 for this case.
 * In order to get smooth lanes among a sequence of frame, I use a frame buffer to save the lanes' positions in previous N frame (line 25 in `lane.py`).
 * If tracking fail (e.g. high standard deviation of the distance between left and right lanes), either keep previous lane positions or start a new detection.
@@ -178,15 +141,13 @@ for this case.
 The radius of curvature of the curve at a particular point is defined as the radius of the approximating circle. 
 You can see the reference [here](http://www.intmath.com/applications-differentiation/8-radius-curvature.php).
 
-![][image-cur]
 
-Function `measure_lane_curvature` in `lane.py` is implemented for this purpose. 
+Function `measure_lane_curvature` in `lane_updated.py` is implemented for this purpose. 
 
 #### Vehicle position
 We assume the camera is mounted roughly at the center of the front window, and we have computed positions of the left and right lanes.
 So we could just take the bottom position of the left and right lanes, and compare with the middle of the image frame. Also, we could 
-utilize the prior knowledge of the width of between left and right lanes (e.g. [3.7 m in US](https://en.wikipedia.org/wiki/Interstate_Highway_standards)) 
-to estimate the distance in real scale.
+utilize the prior knowledge of the width of between left and right lanes (e.g. [3.5 m in India] to estimate the distance in real scale.
 
 A function named `off_center` in `lane.py` is implemented for this purpose. 
 
@@ -196,17 +157,6 @@ Finally, we could warp the detected lane region back to the original input frame
 warn the driver by changing the color from **green** to **red** (see function `create_output_frame` in `lane.py`).
 
 
----
-
-### Two video demos
-
-#### 1. Driving through shadows of trees 
-#### [Video 1 ](https://youtu.be/fqQFVK4ZxoQ)
-
-
-#### 2. Driving through confusing lanes areas
-#### [Video 2]( https://youtu.be/3-CMwxaScEo)
-   
 ---
 
 ### Discussion
@@ -221,7 +171,6 @@ but it may fail with vairous of hard scenarios. In the future, we could consider
 * Use more sensing modalities other then only monocular camera when possible, e.g. Stereo camera, lidar, radar.
 * Adopt machine learning techniques.
 
-![][image-hard_case]
 
 Reference: [1] [Recent Progress in Road and Lane Detection - A survey](https://pdfs.semanticscholar.org/223c/087455c1adc23562d5ea2ebe47cd077feb68.pdf)
 
