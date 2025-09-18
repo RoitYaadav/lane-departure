@@ -1,8 +1,8 @@
 """Departure Warning System with a Monocular Camera"""
 
-__author__ = "Junsheng Fu"
-__email__ = "junsheng.fu@yahoo.com"
-__date__ = "March 2017"
+__author__ = "Rohit"
+__email__ = "rohit.yadav@thedeepterrain.ai"
+__date__ = "sep 2025"
 
 
 import numpy as np
